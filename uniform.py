@@ -1,12 +1,8 @@
 import numpy as np
 from abc import ABC, abstractmethod
-
-from base import BaseMetropolisHastings
-
-
-import numpy as np
 from typing import Callable, Optional
 
+from base import BaseMetropolisHastings
 
 class UniformProposalMH(BaseMetropolisHastings):
     """
@@ -22,7 +18,7 @@ class UniformProposalMH(BaseMetropolisHastings):
     def __init__(
         self,
         target_log_prob: Callable[[np.ndarray], float],
-        step_size: float,
+        step_size: float or int,
         param_dim: int,
         state_validator: Optional[Callable[[np.ndarray], bool]] = None,
         **kwargs
@@ -44,7 +40,6 @@ class UniformProposalMH(BaseMetropolisHastings):
         self.step_size = step_size                  # 均匀提议的步长
         self.state_validator = state_validator      # 状态验证函数
         
-        # 对于离散状态（如骰子），样本数组使用整数类型
         # 对于离散状态（如骰子），样本数组使用整数类型
         state_validator = getattr(self, "state_validator", None)
         # 当前状态和 samples 可能在父类初始化期间尚未完全建立，使用 guard
@@ -137,7 +132,9 @@ class UniformProposalMH(BaseMetropolisHastings):
                 for state, count in zip(states, counts)
             }
             base_summary["state_frequencies"] = frequencies
-            
+        else:
+            base_summary["state_frequencies"] = {}
+
         return base_summary
 
 
@@ -160,7 +157,7 @@ if __name__ == "__main__":
     # 3. 初始化均匀提议MH算法（步长=1，适合骰子相邻点数跳转）
     mh = UniformProposalMH(
         target_log_prob=dice_target_log_prob,
-        step_size=1,  # 步长1：候选状态只能是当前点数±1的整数
+        step_size=1,
         param_dim=1,
         n_iter=10000,
         burn_in=1000,
