@@ -3,7 +3,7 @@ from typing import Callable, Optional
 
 from base import BaseMetropolisHastings
 
-class UniformProposalMH(BaseMetropolisHastings):
+class UniformMH(BaseMetropolisHastings):
     """
     均匀提议分布的MH算法子类实现
     
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         return 1 <= x <= 6
     
     # 3. 初始化均匀提议MH算法（步长=1，适合骰子相邻点数跳转）
-    mh = UniformProposalMH(
+    mh = UniformMH(
         target_log_prob=dice_target_log_prob,
         step_size=1,
         param_dim=1,
