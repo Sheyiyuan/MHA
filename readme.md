@@ -1,3 +1,24 @@
+# Metropolis-Hastings (MH) 算法实现
+
+本仓库实现了Metropolis-Hastings (MH) 算法的两种提议分布变体：
+- **UniformProposalMH**: 基于均匀提议分布的MH算法
+- **GaussianMH**: 基于高斯提议分布的MH算法
+
+## 📚 算法原理文档
+
+**想要深入理解算法的数学原理？** 请查看：
+### [📖 ALGORITHM_PRINCIPLES.md - 算法数学原理详解](ALGORITHM_PRINCIPLES.md)
+
+该文档详细说明了：
+- MH算法的理论背景和数学基础
+- 核心数学公式推导（接受-拒绝准则、细致平衡条件）
+- 马尔可夫链理论与遍历性
+- 高斯提议分布和均匀提议分布的数学原理
+- 参数调优的数学指导
+- 收敛性分析与诊断方法
+
+---
+
 # UniformProposalMH 均匀提议分布MH算法
 
 ## 类说明
