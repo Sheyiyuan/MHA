@@ -1,5 +1,7 @@
 # UniformProposalMH 均匀提议分布MH算法
 
+> 更系统的算法与实现解析请见：`docs/算法与实现解析.md`
+
 ## 类说明
 `UniformProposalMH` 继承自 `BaseMetropolisHastings`，实现了基于均匀提议分布的Metropolis-Hastings算法。
 

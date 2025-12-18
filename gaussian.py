@@ -30,11 +30,11 @@ class GaussianMH(BaseMetropolisHastings):
 
 # 使用子类进行抽样
 if __name__ == "__main__":
-    # 初始化子类（1维参数，10000次迭代，1000次燃烧期）
+    # 初始化子类（1维参数，11000次迭代，10000次燃烧期）
     mh = GaussianMH(
         param_dim=1,
-        n_iter=10000,
-        burn_in=1000,
+        n_iter=11000,
+        burn_in=10000,
         seed=114514,
         proposal_sigma=1.5  # 高斯提议的标准差（子类特有参数）
     )

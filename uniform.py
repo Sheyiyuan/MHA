@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from base import BaseMetropolisHastings
 
@@ -17,9 +17,10 @@ class UniformMH(BaseMetropolisHastings):
     def __init__(
         self,
         target_log_prob: Callable[[np.ndarray], float],
-        step_size: float or int,
+        step_size: Union[float, int],
         param_dim: int,
         state_validator: Optional[Callable[[np.ndarray], bool]] = None,
+        discrete: Optional[bool] = None,
         **kwargs
     ):
         """
@@ -32,25 +33,20 @@ class UniformMH(BaseMetropolisHastings):
             state_validator: 状态验证函数（可选），检查状态是否有效
             **kwargs: 传递给父类的参数（n_iter, burn_in, seed等）
         """
-        super().__init__(param_dim=param_dim,** kwargs)
-        
-        # 子类特有参数
+        # 在调用父类构造前，先设置子类需要在 _init_state 中使用的属性
         self.target_log_prob_func = target_log_prob  # 目标分布函数
         self.step_size = step_size                  # 均匀提议的步长
         self.state_validator = state_validator      # 状态验证函数
-        
-        # 对于离散状态（如骰子），样本数组使用整数类型
-        state_validator = getattr(self, "state_validator", None)
-        # 当前状态和 samples 可能在父类初始化期间尚未完全建立，使用 guard
-        try:
-            test_state = getattr(self, "current_state", None)
-            if state_validator is not None and test_state is not None:
-                if state_validator(test_state):
-                    # 将 samples 转为整数类型，便于后续离散处理
-                    self.samples = self.samples.astype(int)
-        except Exception:
-            # 若在初始化早期出现问题，忽略并让后续逻辑处理
-            pass
+        # 是否离散：显式指定优先，否则根据 step_size 是否为整数进行启发式判断
+        self._is_discrete = bool(discrete) if discrete is not None else isinstance(step_size, int)
+
+        # 调用父类构造（此过程中会调用子类的 _init_state）
+        super().__init__(param_dim=param_dim, **kwargs)
+
+        # 若为离散问题：将当前状态四舍五入到整数，并将样本缓冲区改为整数类型
+        if self._is_discrete:
+            self.current_state = np.round(self.current_state).astype(int)
+            self.samples = self.samples.astype(int)
     
     def target_log_prob(self, state: np.ndarray) -> float:
         """实现抽象方法：计算目标分布的对数未归一化概率"""
@@ -62,32 +58,32 @@ class UniformMH(BaseMetropolisHastings):
         
         逻辑：在当前状态±step_size范围内均匀采样，对离散状态取整数
         """
-        # 生成均匀噪声（范围：-step_size 到 +step_size）
-        noise = self.rng.uniform(
-            low=-self.step_size,
-            high=self.step_size,
-            size=current_state.shape
-        )
-        candidate_state = current_state + noise
-        
-        # 状态验证（如无效则重新生成，最多尝试5次）
-        if self.state_validator is not None:
+        if self._is_discrete:
+            # 离散：先生成，再取整，再验证
+            candidate_state = current_state
             for _ in range(5):
-                if self.state_validator(candidate_state):
-                    break
-                # 重新生成候选状态
                 noise = self.rng.uniform(
                     low=-self.step_size,
                     high=self.step_size,
-                    size=current_state.shape
+                    size=current_state.shape,
+                )
+                candidate_state = np.round(current_state + noise).astype(int)
+                if self.state_validator is None or self.state_validator(candidate_state):
+                    return candidate_state
+            return candidate_state
+        else:
+            # 连续：生成连续候选，必要时多次尝试满足验证器
+            candidate_state = current_state
+            for _ in range(5):
+                noise = self.rng.uniform(
+                    low=-self.step_size,
+                    high=self.step_size,
+                    size=current_state.shape,
                 )
                 candidate_state = current_state + noise
-        
-        # 对离散状态取整数（如骰子点数）
-        if self.samples.dtype == int:
-            candidate_state = np.round(candidate_state).astype(int)
-            
-        return candidate_state
+                if self.state_validator is None or self.state_validator(candidate_state):
+                    break
+            return candidate_state
     
     def proposal_log_prob_ratio(self, current_state: np.ndarray, candidate_state: np.ndarray) -> float:
         """
@@ -102,21 +98,18 @@ class UniformMH(BaseMetropolisHastings):
         state_validator = getattr(self, "state_validator", None)
         if state_validator is None:
             return super()._init_state()
-        else:
-            # 生成满足约束的初始状态
-            for _ in range(100):
-                # 对于离散状态，在可能范围内随机初始化
-                samples = getattr(self, "samples", None)
-                if samples is not None and samples.dtype == int:
-                    # 假设有效状态在[-5,5]范围内（可根据验证器自适应）
-                    state = self.rng.integers(low=-5, high=6, size=self.param_dim)
-                else:
-                    state = self.rng.normal(loc=0.0, scale=1.0, size=self.param_dim)
-                
-                if state_validator(state):
-                    return state
-            # 多次尝试失败后返回父类默认状态
-            return super()._init_state()
+
+        # 有验证器时，优先采样满足约束的初值
+        for _ in range(100):
+            if self._is_discrete:
+                # 保守范围：[-5, 5] 整数，若约束更严格，验证器会筛掉
+                state = self.rng.integers(low=-5, high=6, size=self.param_dim)
+            else:
+                state = self.rng.normal(loc=0.0, scale=1.0, size=self.param_dim)
+            if state_validator(state):
+                return state
+        # 多次尝试失败后返回父类默认状态
+        return super()._init_state()
     
     def get_summary(self) -> dict:
         """扩展摘要：增加离散状态的频率统计"""
@@ -187,6 +180,7 @@ if __name__ == "__main__":
         theo_freq = theoretical[point]
         print(f"{point:<5} {sample_freq:.2%}       {theo_freq:.2%}")
     
-    # 7. 验证6点是否出现（理论上应为0）
-    has_six = 6 in mh.get_effective_samples()
+    # 7. 验证6点是否出现（理论上应为0）—— 更稳健的数组判断
+    eff = mh.get_effective_samples()
+    has_six = bool((eff == 6).any())
     print(f"\n有效样本中是否包含6点: {'是' if has_six else '否'}")
